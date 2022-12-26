@@ -8,6 +8,13 @@ export async function handler(req: Request) {
   const uri = new URL(req.url);
   console.log(uri.pathname);
 
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      status: 200,
+      headers: { "access-control-allow-origin": "*" },
+    });
+  }
+
   if (req.method === "GET" && uri.pathname === "/.well-known/webfinger") {
     // Handle webfinger
     const name = uri.searchParams.get("name");

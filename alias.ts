@@ -28,29 +28,26 @@ async function handleCreate(req: Request) {
       },
     }, { throwError: true });
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 400,
-      headers: { "content-type": "application/json" },
-    });
+    return respond(err, 400);
   }
 
   if (!bloom(json)) {
-    return new Response("Invalid challenge", { status: 400 });
+    return respond(new Error("Invalid challenge"), 400);
   }
 
   try {
     await verifyChallenge(json);
   } catch {
-    return new Response("Invalid code", { status: 403 });
+    return respond(new Error("Invalid code"), 403);
   }
 
   try {
     await db.set(json.name, hex.decode(json.public_key));
   } catch (err) {
-    return new Response(`Create fail: ${err.message}`, { status: 400 });
+    return respond(err, 400);
   }
 
-  return new Response(null, { status: 201 });
+  return respond(null, 201);
 }
 
 async function handleDelete(req: Request) {
@@ -66,21 +63,42 @@ async function handleDelete(req: Request) {
       },
     }, { throwError: true });
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 400,
-      headers: { "content-type": "application/json" },
-    });
+    return respond(err, 400);
   }
 
   const pubKey = await db.get(json.name);
-  if (!pubKey) return new Response(null, { status: 404 });
+  if (!pubKey) return respond(null, 404);
 
   const skey = hex.decode(Deno.env.get("SERVER_KEY")!);
   const code = await totk(skey, pubKey);
   if (code !== json.code) {
-    return new Response("Forbidden", { status: 403 });
+    return respond(new Error("Forbidden"), 403);
   }
 
   await db.del(json.name);
-  return new Response(null, { status: 204 });
+  return respond(null, 204);
+}
+
+function respond(result: unknown, status = 200) {
+  if (result instanceof Error) {
+    return new Response(result.message, {
+      status,
+      headers: {
+        "access-control-allow-origin": "*",
+      },
+    });
+  } else if (result === null) {
+    return new Response(result, {
+      status,
+      headers: { "access-control-allow-origin": "*" },
+    });
+  } else {
+    return new Response(JSON.stringify(result), {
+      status,
+      headers: {
+        "access-control-allow-origin": "*",
+        "content-type": "application/json",
+      },
+    });
+  }
 }
